@@ -3,8 +3,8 @@ use std::env;
 use log;
 
 pub struct DotEnv {
-    rabbit_url: String,
-    db_url: String,
+    pub rabbit_url: String,
+    pub db_url: String,
 }
 
 pub fn load_dotenv() -> Result<DotEnv, Box<dyn std::error::Error>> {
@@ -14,7 +14,6 @@ pub fn load_dotenv() -> Result<DotEnv, Box<dyn std::error::Error>> {
         .map_err(|e| format!("Failed to get RABBIT_URL: {}", e))?;
     let db_url = env::var("DB_URL")
         .map_err(|e| format!("Failed to get DB_URL: {}", e))?;
-    
     log::info!(".ENV Vars loaded successfully! Returning them now...");
 
     Ok(DotEnv {
