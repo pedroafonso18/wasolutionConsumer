@@ -6,13 +6,13 @@ use lapin::{
 use log::{info, error};
 use tokio::time::{sleep, Duration};
 
-pub async fn connect_rabbitmq(rabbit_url: &str) -> Result<Connection, lapin::Error> {
+pub async fn connect_rabbitmq(rabbit_url: &str, queue_name: &str) -> Result<Connection, lapin::Error> {
     let options = ConnectionProperties::default()
-        .with_connection_name("outgoing_requests".into());
+        .with_connection_name(queue_name.into());
     Connection::connect(rabbit_url, options).await
 }
 
-pub async fn setup_consumer(connection: &Connection) -> Result<Consumer, lapin::Error> {
+pub async fn setup_consumer(connection: &Connection, queue_name: &str) -> Result<Consumer, lapin::Error> {
     let channel = connection.create_channel().await?;
     
     channel.basic_qos(1, BasicQosOptions::default()).await?;
@@ -23,12 +23,12 @@ pub async fn setup_consumer(connection: &Connection) -> Result<Consumer, lapin::
         ..QueueDeclareOptions::default()
     };
     
-    channel.queue_declare("webhook_gupshup", queue_options, FieldTable::default()).await?;
+    channel.queue_declare(queue_name, queue_options, FieldTable::default()).await?;
     
     let consumer = channel
         .basic_consume(
-            "webhook_gupshup",
-            "rust-consumer",
+            queue_name,
+            "WasolConsumer",
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -37,12 +37,12 @@ pub async fn setup_consumer(connection: &Connection) -> Result<Consumer, lapin::
     Ok(consumer)
 }
 
-pub async fn create_rabbitmq_consumer(rabbit_url: &str) -> Option<(Consumer, Connection)> {
+pub async fn create_rabbitmq_consumer(rabbit_url: &str, queue_name: &str) -> Option<(Consumer, Connection)> {
     loop {
-        match connect_rabbitmq(rabbit_url).await {
+        match connect_rabbitmq(rabbit_url, queue_name).await {
             Ok(connection) => {
                 info!("RabbitMQ connection established");
-                match setup_consumer(&connection).await {
+                match setup_consumer(&connection, queue_name).await {
                     Ok(consumer) => {
                         info!("Consumer set up successfully");
                         return Some((consumer, connection));

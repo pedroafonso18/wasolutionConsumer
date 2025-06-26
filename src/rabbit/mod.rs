@@ -1,2 +1,1 @@
-pub mod connect;
-pub mod consume;
+pub mod setup_rabbit;
