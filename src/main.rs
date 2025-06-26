@@ -13,10 +13,18 @@ use tokio::select;
 use tokio::signal;
 use tokio_postgres::Client;
 use std::sync::Arc;
+use env_logger::{Builder, Env};
 
 
 #[tokio::main]
 async fn main() {
+    let envi = Env::default().filter_or("RUST_LOG", "debug");
+
+    Builder::from_env(envi)
+        .format_timestamp_secs()
+        .format_module_path(true)
+        .init();
+
     let env = match config::config::load_dotenv() {
         Ok(env) => env,
         Err(e) => {

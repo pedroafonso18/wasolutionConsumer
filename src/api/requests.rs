@@ -11,10 +11,12 @@ pub async fn make_request(request : parser::library::Request) -> Result<(), Box<
 
         for (key, value) in &request.headers {
             req = req.header(key, value);
+            info!("Headers: {} : {}",key, value);
         }
 
         if let Some(body) = &request.body {
             let body_json = serde_json::to_string(body)?;
+            info!("Body: {}", &body_json);
             req = req.body(body_json);
         }
 
@@ -23,6 +25,9 @@ pub async fn make_request(request : parser::library::Request) -> Result<(), Box<
             error!("Request failed with status: {}", response.status());
             return Err(format!("Request failed with status: {}", response.status()).into());
         }
+        
+        let response_text = response.text().await?;
+        info!("Response body: {}", response_text);
     } else if request.method == "GET" {
         let mut req = client.get(&request.url);
 
@@ -40,6 +45,9 @@ pub async fn make_request(request : parser::library::Request) -> Result<(), Box<
             error!("Request failed with status: {}", response.status());
             return Err(format!("Request failed with status: {}", response.status()).into());
         }
+        
+        let response_text = response.text().await?;
+        info!("Response body: {}", response_text);
     } else if request.method == "DELETE" {
         let mut req = client.delete(&request.url);
 
@@ -57,6 +65,9 @@ pub async fn make_request(request : parser::library::Request) -> Result<(), Box<
             error!("Request failed with status: {}", response.status());
             return Err(format!("Request failed with status: {}", response.status()).into());
         }
+        
+        let response_text = response.text().await?;
+        info!("Response body: {}", response_text);
     } else {
         error!("Couldn't make request, method was neither POST, nor GET, nor DELETE.");
         return Err("Couldn't make request, method was neither POST, nor GET, nor DELETE.".into());
