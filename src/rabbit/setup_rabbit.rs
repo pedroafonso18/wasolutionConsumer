@@ -1,7 +1,7 @@
 use lapin::{
     options::{BasicConsumeOptions, BasicQosOptions, QueueDeclareOptions},
     types::FieldTable,
-    ConnectionProperties, Consumer, Connection, Channel
+    ConnectionProperties, Consumer, Connection
 };
 use log::{info, error};
 use tokio::time::{sleep, Duration};
