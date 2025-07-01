@@ -11,6 +11,7 @@ pub async fn process_incoming(data: &[u8], redis_conn: &mut MultiplexedConnectio
     let text = rabbit_response.webhook.body.data.message.conversation.clone().unwrap_or_default();
     let timestamp = &rabbit_response.webhook.body.date_time;
     let unix = rabbit_response.webhook.body.data.message_timestamp;
+    let remote_jid = &rabbit_response.webhook.body.data.key.remote_jid;
 
     let message = json!({
         "id": format!("msg_{}", unix),
@@ -20,7 +21,7 @@ pub async fn process_incoming(data: &[u8], redis_conn: &mut MultiplexedConnectio
         "timestamp": timestamp
     });
 
-    insert_message_to_chat(redis_conn, chat_id, &message.to_string()).await?;
+    insert_message_to_chat(redis_conn, chat_id, &message.to_string(), remote_jid).await?;
 
     Ok(())
 }

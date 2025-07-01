@@ -18,7 +18,7 @@ pub async fn setup_consumer(connection: &Connection, queue_name: &str) -> Result
     channel.basic_qos(1, BasicQosOptions::default()).await?;
     
     let queue_options = QueueDeclareOptions {
-        passive: true,
+        passive: false,
         durable: true,
         ..QueueDeclareOptions::default()
     };
