@@ -4,6 +4,7 @@ mod api;
 mod parser;
 mod database;
 mod process;
+mod redis_mod;
 
 use log::{error, info, warn};
 use tokio::time::{sleep, Duration};
@@ -14,7 +15,8 @@ use tokio::signal;
 use tokio_postgres::Client;
 use std::sync::Arc;
 use env_logger::{Builder, Env};
-
+use redis::aio::MultiplexedConnection;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
@@ -37,6 +39,14 @@ async fn main() {
 
     info!("Starting WaSolConsumer");
 
+    let redis_conn = match crate::redis_mod::redis::connect_redis(&env.redis_url).await {
+        Ok(conn) => Arc::new(Mutex::new(conn)),
+        Err(e) => {
+            error!("ERROR: Couldn't connect to Redis: {}", e);
+            return;
+        }
+    };
+
     loop {
         let db_client = match database::connect::connect_db(&env.db_url).await {
             Ok(db_client) => db_client,
@@ -47,8 +57,13 @@ async fn main() {
             }
         };
         let db_client = Arc::new(db_client);
-        info!("Setting up Outgoing Request consumer...");
-        match run_consumer(&env.rabbit_url, &db_client, "outgoing_requests").await {
+        info!("Setting up Outgoing and Incoming Request consumers...");
+
+        let outgoing = run_consumer(&env.rabbit_url, &db_client, "outgoing_requests", None);
+        let incoming = run_consumer(&env.rabbit_url, &db_client, "incoming_requests", Some(Arc::clone(&redis_conn)));
+
+        let result = tokio::try_join!(outgoing, incoming);
+        match result {
             Ok(_) => {
                 info!("Application shutdown requested");
                 break;
@@ -60,21 +75,19 @@ async fn main() {
                 sleep(Duration::from_secs(5)).await;
             }
         }
-
     }
 }
-
 
 async fn run_consumer(
     rabbit_url: &str,
     db_client: &Arc<Client>,
-    queue_name: &str
+    queue_name: &str,
+    redis_conn: Option<Arc<Mutex<MultiplexedConnection>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut consumer, _) = match rabbit::setup_rabbit::create_rabbitmq_consumer(rabbit_url, queue_name).await {
         Some((consumer, connection)) => (consumer, connection),
         None => return Err("Failed to create RabbitMQ consumer".into()),
     };
-
 
     info!("Consumer ready, waiting for webhooks...");
     info!("Press Ctrl+C to exit");
@@ -90,9 +103,21 @@ async fn run_consumer(
                         let data = delivery.data.clone();
                         let db = Arc::clone(db_client);
                         let queue_name = queue_name.to_string();
-
-                        tokio::spawn(async move {
-                            if queue_name == "outgoing_requests" {
+                        if queue_name == "incoming_requests" {
+                            let redis_conn = redis_conn.as_ref().unwrap().clone();
+                            tokio::spawn(async move {
+                                let mut redis_conn = redis_conn.lock().await;
+                                match process::incoming::process_incoming(&data, &mut *redis_conn).await {
+                                    Ok(_) => {
+                                        info!("Successfully processed incoming request");
+                                    }
+                                    Err(e) => {
+                                        error!("Error processing incoming request: {}", e);
+                                    }
+                                }
+                            });
+                        } else if queue_name == "outgoing_requests" {
+                            tokio::spawn(async move {
                                 match process::outgoing::process_outgoing(&data, &db).await {
                                     Ok(_) => {
                                         info!("Successfully processed outgoing request");
@@ -104,20 +129,8 @@ async fn run_consumer(
                                         sleep(Duration::from_secs(5)).await;
                                     }
                                 }
-                            } else if queue_name == "incoming_requests" {
-                                /*
-                                match process::incoming::process_incoming(&data, &db).await {
-                                    Ok(_) => {
-                                        info!("Successfully processed incoming request");
-                                    }
-                                    Err(e) => {
-                                        error!("Error processing incoming request: {}", e);
-                                    }
-                                }
-                                */
-                                info!("Still not implemented...");
-                            }
-                        });
+                            });
+                        }
 
                         if let Err(e) = delivery.ack(lapin::options::BasicAckOptions::default()).await {
                             error!("Failed to acknowledge message: {}", e);
