@@ -161,7 +161,7 @@ async fn run_consumer(
                                                 let chat_id = &key.remote_jid;
                                                 let remote_jid = chat_id;
                                                 let message_json = serde_json::to_string(&message).unwrap_or_default();
-                                                if let Err(e) = insert_message_to_chat(&mut *redis_conn, chat_id, &message_json, remote_jid).await {
+                                                if let Err(e) = insert_message_to_chat(&mut *redis_conn, chat_id, &message_json, remote_jid, None, None).await {
                                                     error!("Failed to insert message to Redis: {}", e);
                                                 }
                                             }
