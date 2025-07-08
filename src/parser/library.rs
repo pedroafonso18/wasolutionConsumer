@@ -128,19 +128,19 @@ pub struct MessageContent {
 
 #[derive(Deserialize, Debug)]
 pub struct SendMessageResponse {
-    pub status_code: i32,
-    pub status_string: StatusString,
+    pub status_code: Option<i32>,
+    pub status_string: Option<StatusString>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct StatusString {
     pub contextInfo: Option<serde_json::Value>,
-    pub instanceId: String,
-    pub key: MessageKey,
-    pub message: MessageContent,
-    pub messageTimestamp: i64,
-    pub messageType: String,
-    pub pushName: String,
-    pub source: String,
-    pub status: String,
+    pub instanceId: Option<String>,
+    pub key: Option<MessageKey>,
+    pub message: Option<MessageContent>,
+    pub messageTimestamp: Option<i64>,
+    pub messageType: Option<String>,
+    pub pushName: Option<String>,
+    pub source: Option<String>,
+    pub status: Option<String>,
 }

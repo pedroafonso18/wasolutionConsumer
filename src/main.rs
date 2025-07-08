@@ -156,11 +156,15 @@ async fn run_consumer(
                                 let mut redis_conn = redis_conn.lock().await;
                                 match serde_json::from_slice::<SendMessageResponse>(&data) {
                                     Ok(response) => {
-                                        let chat_id = &response.status_string.key.remote_jid;
-                                        let remote_jid = chat_id;
-                                        let message_json = serde_json::to_string(&response.status_string.message).unwrap_or_default();
-                                        if let Err(e) = insert_message_to_chat(&mut *redis_conn, chat_id, &message_json, remote_jid).await {
-                                            error!("Failed to insert message to Redis: {}", e);
+                                        if let Some(status_string) = &response.status_string {
+                                            if let (Some(key), Some(message)) = (&status_string.key, &status_string.message) {
+                                                let chat_id = &key.remote_jid;
+                                                let remote_jid = chat_id;
+                                                let message_json = serde_json::to_string(&message).unwrap_or_default();
+                                                if let Err(e) = insert_message_to_chat(&mut *redis_conn, chat_id, &message_json, remote_jid).await {
+                                                    error!("Failed to insert message to Redis: {}", e);
+                                                }
+                                            }
                                         }
                                     }
                                     Err(e) => {
