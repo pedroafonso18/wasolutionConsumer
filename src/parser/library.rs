@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use serde::Deserialize;
+use serde::Serialize;
 
 
 #[derive(Deserialize)]
@@ -111,7 +112,7 @@ pub struct WebhookData {
     pub source: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct MessageKey {
     #[serde(rename = "remoteJid")]
     pub remote_jid: String,
@@ -120,7 +121,26 @@ pub struct MessageKey {
     pub id: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct MessageContent {
     pub conversation: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SendMessageResponse {
+    pub status_code: i32,
+    pub status_string: StatusString,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StatusString {
+    pub contextInfo: Option<serde_json::Value>,
+    pub instanceId: String,
+    pub key: MessageKey,
+    pub message: MessageContent,
+    pub messageTimestamp: i64,
+    pub messageType: String,
+    pub pushName: String,
+    pub source: String,
+    pub status: String,
 }

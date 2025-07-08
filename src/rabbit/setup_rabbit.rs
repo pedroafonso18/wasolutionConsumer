@@ -1,6 +1,6 @@
 use lapin::{
     options::{BasicConsumeOptions, BasicQosOptions, QueueDeclareOptions},
-    types::FieldTable,
+    types::{FieldTable, LongString, AMQPValue},
     ConnectionProperties, Consumer, Connection
 };
 use log::{info, error};
@@ -23,7 +23,10 @@ pub async fn setup_consumer(connection: &Connection, queue_name: &str) -> Result
         ..QueueDeclareOptions::default()
     };
     
-    channel.queue_declare(queue_name, queue_options, FieldTable::default()).await?;
+    let mut args = FieldTable::default();
+    args.insert("x-queue-type".into(), AMQPValue::LongString(LongString::from("quorum")));
+    
+    channel.queue_declare(queue_name, queue_options, args).await?;
     
     let consumer = channel
         .basic_consume(

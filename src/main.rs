@@ -17,6 +17,8 @@ use std::sync::Arc;
 use env_logger::{Builder, Env};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
+use crate::parser::library::SendMessageResponse;
+use crate::redis_mod::redis::insert_message_to_chat;
 
 #[tokio::main]
 async fn main() {
@@ -61,8 +63,10 @@ async fn main() {
 
         let outgoing = run_consumer(&env.rabbit_url, &db_client, "outgoing_requests", None);
         let incoming = run_consumer(&env.rabbit_url, &db_client, "incoming_requests", Some(Arc::clone(&redis_conn)));
+        let upsert = run_consumer(&env.rabbit_url, &db_client, "evolution.messages.upsert", Some(Arc::clone(&redis_conn)));
+        let send = run_consumer(&env.rabbit_url, &db_client, "evolution.send.message", Some(Arc::clone(&redis_conn)));
 
-        let result = tokio::try_join!(outgoing, incoming);
+        let result = tokio::try_join!(outgoing, incoming, upsert, send);
         match result {
             Ok(_) => {
                 info!("Application shutdown requested");
@@ -127,6 +131,40 @@ async fn run_consumer(
                                         println!("ERROR: Consumer loop failed: {}", e);
                                         info!("Reconnecting in 5 seconds...");
                                         sleep(Duration::from_secs(5)).await;
+                                    }
+                                }
+                            });
+                        } else if queue_name == "evolution.messages.upsert" {
+                            let redis_conn = redis_conn.as_ref().unwrap().clone();
+                            tokio::spawn(async move {
+                                let mut redis_conn = redis_conn.lock().await;
+                                match process::incoming::process_incoming(&data, &mut *redis_conn).await {
+                                    Ok(_) => {
+                                        info!("Successfully processed outgoing request");
+                                    }
+                                    Err(e) => {
+                                        error!("Error in consumer loop: {}", e);
+                                        println!("ERROR: Consumer loop failed: {}", e);
+                                        info!("Reconnecting in 5 seconds...");
+                                        sleep(Duration::from_secs(5)).await;
+                                    }
+                                }
+                            });
+                        } else if queue_name == "evolution.send.message" {
+                            let redis_conn = redis_conn.as_ref().unwrap().clone();
+                            tokio::spawn(async move {
+                                let mut redis_conn = redis_conn.lock().await;
+                                match serde_json::from_slice::<SendMessageResponse>(&data) {
+                                    Ok(response) => {
+                                        let chat_id = &response.status_string.key.remote_jid;
+                                        let remote_jid = chat_id;
+                                        let message_json = serde_json::to_string(&response.status_string.message).unwrap_or_default();
+                                        if let Err(e) = insert_message_to_chat(&mut *redis_conn, chat_id, &message_json, remote_jid).await {
+                                            error!("Failed to insert message to Redis: {}", e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to deserialize SendMessageResponse: {}", e);
                                     }
                                 }
                             });
