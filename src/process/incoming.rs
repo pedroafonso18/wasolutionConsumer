@@ -1,9 +1,12 @@
-use crate::redis_mod::redis::insert_message_to_chat;
+use crate::redis_mod::redis::{insert_message_to_chat, normalize_chat_id};
 use redis::aio::MultiplexedConnection;
 use serde_json::{Value, json};
-use chrono::{DateTime, Utc};
 
-pub async fn process_incoming(data: &[u8], redis_conn: &mut MultiplexedConnection) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+
+pub async fn process_incoming(
+    data: &[u8],
+    redis_conn: &mut MultiplexedConnection,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let value: Value = serde_json::from_slice(data)?;
 
     let chat_id = value.pointer("/status_string/key/remote_jid")
@@ -11,6 +14,7 @@ pub async fn process_incoming(data: &[u8], redis_conn: &mut MultiplexedConnectio
         .or_else(|| value.get("number"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown_chat");
+    let chat_id = &normalize_chat_id(chat_id);
     let remote_jid = chat_id;
 
     let is_contact = value.get("name").is_some() && value.get("number").is_some() && value.get("created_at").is_some();
@@ -63,5 +67,7 @@ pub async fn process_incoming(data: &[u8], redis_conn: &mut MultiplexedConnectio
     });
     let message_json = serde_json::to_string(&normalized).unwrap_or_default();
     insert_message_to_chat(redis_conn, chat_id, &message_json, remote_jid, chat_metadata, Some(data)).await?;
+
+
     Ok(())
 }

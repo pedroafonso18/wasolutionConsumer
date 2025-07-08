@@ -18,7 +18,7 @@ use env_logger::{Builder, Env};
 use redis::aio::MultiplexedConnection;
 use tokio::sync::Mutex;
 use crate::parser::library::SendMessageResponse;
-use crate::redis_mod::redis::insert_message_to_chat;
+use crate::redis_mod::redis::{insert_message_to_chat, normalize_chat_id};
 
 #[tokio::main]
 async fn main() {
@@ -158,10 +158,10 @@ async fn run_consumer(
                                     Ok(response) => {
                                         if let Some(status_string) = &response.status_string {
                                             if let (Some(key), Some(message)) = (&status_string.key, &status_string.message) {
-                                                let chat_id = &key.remote_jid;
-                                                let remote_jid = chat_id;
+                                                let chat_id = normalize_chat_id(&key.remote_jid);
+                                                let remote_jid = &chat_id;
                                                 let message_json = serde_json::to_string(&message).unwrap_or_default();
-                                                if let Err(e) = insert_message_to_chat(&mut *redis_conn, chat_id, &message_json, remote_jid, None, None).await {
+                                                if let Err(e) = insert_message_to_chat(&mut *redis_conn, &chat_id, &message_json, remote_jid, None, None).await {
                                                     error!("Failed to insert message to Redis: {}", e);
                                                 }
                                             }
