@@ -51,7 +51,7 @@ pub async fn process_outgoing(data: &[u8], client: &Client) -> Result<(), Box<dy
                 return Err(format!("Couldn't deserialize customer data: {}", e).into());
             }
         }
-    } else if request_text.contains("upsertMessage") {
+    } else if request_text.contains("SendMessage") {
         info!("Starting UpsertMessage process...");
         match serde_json::from_str::<crate::parser::library::Message>(&request_text) {
             Ok(message) => {
